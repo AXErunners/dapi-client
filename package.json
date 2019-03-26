@@ -1,6 +1,6 @@
 {
   "name": "@axerunners/dapi-client",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Client library used to access AXE DAPI endpoints",
   "main": "index.js",
   "dependencies": {
