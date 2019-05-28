@@ -1,12 +1,13 @@
 {
   "name": "@axerunners/dapi-client",
-  "version": "0.3.1",
+  "version": "0.5.0",
   "description": "Client library used to access AXE DAPI endpoints",
   "main": "index.js",
   "dependencies": {
     "@babel/polyfill": "^7.2.5",
-    "@axerunners/axecore-lib": "^0.17.0",
-    "@axerunners/quorums": "^1.0.2",
+    "@axerunners/dapi-grpc": "^0.5.1",
+    "@axerunners/axecore-lib": "^0.17.1",
+    "@axerunners/quorums": "^1.0.0",
     "axios": "^0.18.0",
     "lodash": "^4.17.11",
     "lowdb": "^1.0.0"
@@ -14,8 +15,8 @@
   "devDependencies": {
     "@babel/core": "^7.2.2",
     "@babel/preset-env": "^7.2.3",
-    "@axerunners/app": "^v0.4.4",
-    "@axerunners/js-evo-services-ctl": "git+ssh://git@github.com/axerunners/js-evo-services-ctl#master",
+    "@axerunners/app": "^v0.7.1",
+    "@axerunners/ap-services-ctl": "^0.7.1",
     "babel-loader": "^8.0.5",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
@@ -37,19 +38,22 @@
     "karma-webpack": "^3.0.5",
     "mocha": "^5.2.0",
     "node-fetch": "^2.3.0",
-    "nyc": "^13.3.0",
+    "nyc": "^14.0.0",
     "sinon": "^7.2.2",
     "webpack": "^4.28.1",
     "webpack-cli": "^3.2.1"
   },
   "scripts": {
     "build": "webpack --display-error-details",
-    "dashboard": "node ./poc/dashboard/index.js",
     "lint": "eslint .",
     "test": "npm run build && npm run test:node && npm run test:firefox",
-    "test:node": "nyc --check-coverage --reporter=html --reporter=text --lines=84 --branches=66 --functions=70 mocha test/src --recursive",
+    "test:node": "nyc --check-coverage --reporter=html --reporter=text --lines=83 --branches=63 --functions=70 mocha test/src --recursive",
     "test:firefox": "karma start ./karma.conf.js --browsers Firefox --single-run",
-    "test:integration": "mocha './test/integration/*.spec.js' --timeout 240000"
+    "test:integration": "mocha './test/integration/*.spec.js' --timeout 240000",
+    "check-package": "npm run check-package:name && npm run check-package:version",
+    "check-package:name": "test $(jq -r .name package.json) = $(jq -r .name package-lock.json)",
+    "check-package:version": "test $(jq -r .version package.json) = $(jq -r .version package-lock.json)",
+    "prepublishOnly": "npm run build"
   },
   "author": "",
   "license": "MIT"

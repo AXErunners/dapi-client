@@ -1,7 +1,9 @@
-const DAPIClient = require('../../src/index');
-const chai = require('chai');
-const chaiAsPromised = require('chai-as-promised');
 const sinon = require('sinon');
+const TxFilterGrpcClient = require('@axerunners/dapi-grpc');
+const chai = require('chai');
+const { EventEmitter } = require('events');
+const DAPIClient = require('../../src/index');
+const chaiAsPromised = require('chai-as-promised');
 const rpcClient = require('../../src/RPCClient');
 const config = require('../../src/config');
 const SMNListFixture = require('../fixtures/mnList');
@@ -62,7 +64,7 @@ const validAddressTransactions = {
       'blockheight': -1,
       'confirmations': 0,
       'time': 1545636907,
-      'valueOut': 499.9999,
+      'valueOut': 499.9937,
       'size': 297,
       'valueIn': 500,
       'fees': 0.0001,
@@ -86,7 +88,7 @@ const rawBlock = {
 
 const contractId = '11c70af56a763b05943888fa3719ef56b3e826615fdda2d463c63f4034cb861c';
 
-const dapContract = {
+const contract = {
   'dapname': 'TestContacts_test',
   'dapver': 1,
   'idx': 0,
@@ -96,7 +98,7 @@ const dapContract = {
   'pver': 1,
   'dapschema': {
     'title': 'TestContacts_test',
-    'DashPay': {
+    'AxePay': {
       '$id': 'http://axe.org/schemas/sys/dapschema',
       'user': {
         '$id': 'http://axe.org/schemas/sys/dapobject',
@@ -129,7 +131,7 @@ const dapContract = {
           }
         }
       },
-      'title': 'DashPay',
+      'title': 'AxePay',
       'contact': {
         '$id': 'http://axe.org/schemas/sys/dapobject',
         'allOf': [
@@ -311,7 +313,7 @@ const validBlockHeader =
 
 const validMnListDiff = SMNListFixture.getFirstDiff();
 
-const dapObjects = [{
+const documents = [{
   'avatar': 'My avatar here',
   'aboutme': 'This is story about me',
   'objtype': 'user',
@@ -486,11 +488,11 @@ describe('api', () => {
           if (method === 'getRawBlock') {
             return rawBlock;
           }
-          if (method === 'fetchDapContract') {
-            return dapContract;
+          if (method === 'fetchContract') {
+            return contract;
           }
-          if (method === 'fetchDapObjects') {
-            return dapObjects;
+          if (method === 'fetchDocuments') {
+            return documents;
           }
           if (method === 'sendRawIxTransaction') {
             return {
@@ -568,13 +570,9 @@ describe('api', () => {
       expect(utxo).to.be.an('array');
       expect(utxo.length).to.be.equal(0);
     });
-    it('Should throw error if address is invalid', async () => {
+    it('Should throw error if address is invalid/not found', async () => {
       const dapi = new DAPIClient();
-      return expect(dapi.getUTXO(invalidAddress)).to.be.rejected;
-    });
-    it('Should throw error if address not existing', async () => {
-      const dapi = new DAPIClient();
-      return expect(dapi.getUTXO(invalidAddress)).to.be.rejected;
+      await expect(dapi.getUTXO(invalidAddress)).to.be.rejectedWith('DAPI RPC error: getUTXO: Error: Address not found');
     });
   });
   describe('.address.getAddressSummary', () => {
@@ -652,17 +650,17 @@ describe('api', () => {
     });
     it('Should throw error if address is invalid', async () => {
       const dapi = new DAPIClient();
-      return expect(dapi.getBalance(invalidAddress)).to.be.rejected;
+      await expect(dapi.getBalance(invalidAddress)).to.be.rejectedWith('DAPI RPC error: getBalance: Error: Address not found');
     });
   });
   describe('.user.getUserByName', () => {
     it('Should throw error if username or regtx is incorrect', async () => {
       const dapi = new DAPIClient();
-      return expect(dapi.getUserByName(invalidUsername)).to.be.rejected;
+      await expect(dapi.getUserByName(invalidUsername)).to.be.rejectedWith('DAPI RPC error: getUser: Error: User with such username not found');
     });
     it('Should throw error if user not found', async () => {
       const dapi = new DAPIClient();
-      return expect(dapi.getUserByName(notExistingUsername)).to.be.rejected;
+      await expect(dapi.getUserByName(notExistingUsername)).to.be.rejectedWith('DAPI RPC error: getUser: Error: User with such username not found');
     });
     it('Should return user data if user exists', async () => {
       const dapi = new DAPIClient();
@@ -675,11 +673,11 @@ describe('api', () => {
       const dapi = new DAPIClient();
       const user = await dapi.getUserByName(validUsername);
       dapi.generate(10);
-      return expect(dapi.getUserById(user.regtxid + 'fake')).to.be.rejected;
+      await expect(dapi.getUserById(user.regtxid + 'fake')).to.be.rejectedWith('DAPI RPC error: getUser: Error: User with such od not found');
     });
     it('Should throw error if user id not found', async () => {
       const dapi = new DAPIClient();
-      return expect(dapi.getUserById(notExistingUsername)).to.be.rejected;
+      await expect(dapi.getUserById(notExistingUsername)).to.be.rejectedWith('DAPI RPC error: getUser: Error: User with such od not found');
     });
     it('Should return user data if user exists', async () => {
       const dapi = new DAPIClient();
@@ -703,16 +701,6 @@ describe('api', () => {
             "axe2"
           ],
           "totalCount": 2
-        });
-    });
-  });
-  describe('.getSpvData', () => {
-    it('Should return getSpvData', async () => {
-      const dapi = new DAPIClient();
-      const filter = '';
-      const res = await dapi.getSpvData(filter);
-      expect(res).to.be.deep.equal({
-          "hash": validBlockHash
         });
     });
   });
@@ -741,11 +729,11 @@ describe('api', () => {
     });
     it('Should be rejected if height is invalid', async () => {
       const dapi = new DAPIClient();
-      await expect(dapi.getBlockHash(1000000)).to.be.rejected;
-      await expect(dapi.getBlockHash('some string')).to.be.rejected;
-      await expect(dapi.getBlockHash(1.2)).to.be.rejected;
-      await expect(dapi.getBlockHash(-1)).to.be.rejected;
-      await expect(dapi.getBlockHash(true)).to.be.rejected;
+      await expect(dapi.getBlockHash(1000000)).to.be.rejectedWith('DAPI RPC error: getBlockHash: Error: Invalid block height');
+      await expect(dapi.getBlockHash('some string')).to.be.rejectedWith('DAPI RPC error: getBlockHash: Error: Invalid block height');
+      await expect(dapi.getBlockHash(1.2)).to.be.rejectedWith('DAPI RPC error: getBlockHash: Error: Invalid block height');
+      await expect(dapi.getBlockHash(-1)).to.be.rejectedWith('DAPI RPC error: getBlockHash: Error: Invalid block height');
+      await expect(dapi.getBlockHash(true)).to.be.rejectedWith('DAPI RPC error: getBlockHash: Error: Invalid block height');
     });
   });
 
@@ -824,7 +812,7 @@ describe('api', () => {
     xit('Should send raw transition', async () => {
       // 1. Create ST packet
       let { stpacket: stPacket } = Schema.create.stpacket();
-      stPacket = Object.assign(stPacket, dapContract);
+      stPacket = Object.assign(stPacket, contract);
 
       // 2. Create State Transition
       const transaction = new Transaction()
@@ -848,23 +836,23 @@ describe('api', () => {
     });
     it('Should throw error when data packet is missing', async () => {
       const dapi = new DAPIClient();
-      return expect(dapi.sendRawTransition()).to.be.rejected;
+      await expect(dapi.sendRawTransition()).to.be.rejectedWith('DAPI RPC error: sendRawTransition: Error: Data packet is missing');
     });
   });
 
-  describe('.tx.fetchDapContract', () => {
+  describe('.tx.fetchContract', () => {
     it('Should fetch dap contract', async () => {
       const dapi = new DAPIClient();
-      const dapContract = await dapi.fetchDapContract(contractId);
-      expect(dapContract).to.be.deep.equal(dapContract);
+      const contract = await dapi.fetchContract(contractId);
+      expect(contract).to.be.deep.equal(contract);
     });
   });
 
-  describe('.tx.fetchDapObjects', () => {
+  describe('.tx.fetchDocuments', () => {
     it('Should fetch dap objects', async () => {
       const dapi = new DAPIClient();
-      const dapContract = await dapi.fetchDapObjects(contractId, 'user', {});
-      expect(dapContract).to.be.deep.equal(dapObjects);
+      const contract = await dapi.fetchDocuments(contractId, 'user', {});
+      expect(contract).to.be.deep.equal(documents);
     });
   });
 
@@ -916,33 +904,32 @@ describe('api', () => {
     });
   });
 
-  describe('.spv.loadBloomFilter', () => {
-    it('Should return loadBloomFilter', async () => {
-      const dapi = new DAPIClient();
-      const filter = '';
-      const res = await dapi.loadBloomFilter(filter);
-      // TODO: implement real unit test
-      expect(res).to.be.deep.equal([]);
+  describe('.subscribeToTransactionsByFilter', () => {
+    let stream;
+    beforeEach(() => {
+      stream = new EventEmitter();
+      sinon
+        .stub(TxFilterGrpcClient.TransactionsFilterStreamClient.prototype, 'getTransactionsByFilter')
+        .returns(stream);
     });
-  });
 
-  describe('.spv.addToBloomFilter', () => {
-    it('Should return addToBloomFilter', async () => {
-      const dapi = new DAPIClient();
-      const filter = '';
-      const res = await dapi.addToBloomFilter(filter);
-      // TODO: implement real unit test
-      expect(res).to.be.deep.equal([]);
+    afterEach(() => {
+      TxFilterGrpcClient.TransactionsFilterStreamClient.prototype.getTransactionsByFilter.restore();
     });
-  });
 
-  describe('.spv.clearBloomFilter', () => {
-    it('Should return clearBloomFilter', async () => {
-      const dapi = new DAPIClient();
-      const filter = '';
-      const res = await dapi.clearBloomFilter(filter);
-      // TODO: implement real unit test
-      expect(res).to.be.deep.equal([]);
+    it('should return a stream', async () => {
+      const client = new DAPIClient();
+
+      const bloomFilter = {
+        vData: new Array([1]),
+        nHashFuncs: 10,
+        nTweak: Math.floor(Math.random() * 1000),
+        nFlags: 1,
+      };
+
+      const actualStream = await client.subscribeToTransactionsByFilter(bloomFilter);
+
+      expect(actualStream).to.be.equal(stream);
     });
   });
 });

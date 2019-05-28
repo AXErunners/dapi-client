@@ -1,5 +1,6 @@
 const jsutil = require('@axerunners/axecore-lib').util.js;
 const preconditionsUtil = require('@axerunners/axecore-lib').util.preconditions;
+const { BloomFilter, TransactionsFilterStreamClient } = require('@axerunners/dapi-grpc');
 const MNDiscovery = require('./MNDiscovery/index');
 const rpcClient = require('./RPCClient');
 const config = require('./config');
@@ -9,13 +10,15 @@ class DAPIClient {
    * @param options
    * @param {Array<Object>} [options.seeds] - seeds. If no seeds provided
    * default seed will be used.
-   * @param {number} [options.port] - default port for connection to the DAPI
-   * @param {number} [options.timeout] - timeout for connection to the DAPI
-   * @param {number} [options.retries] - num of retries if there is no response from DAPI node
+   * @param {number} [options.port=3000] - default port for connection to the DAPI
+   * @param {number} [options.nativeGrpcPort=3010] - Native GRPC port for connection to the DAPI
+   * @param {number} [options.timeout=2000] - timeout for connection to the DAPI
+   * @param {number} [options.retries=3] - num of retries if there is no response from DAPI node
    */
   constructor(options = {}) {
     this.MNDiscovery = new MNDiscovery(options.seeds, options.port);
     this.DAPIPort = options.port || config.Api.port;
+    this.nativeGrpcPort = options.nativeGrpcPort || config.grpc.nativePort;
     this.timeout = options.timeout || 2000;
     preconditionsUtil.checkArgument(jsutil.isUnsignedInteger(this.timeout),
       'Expect timeout to be an unsigned integer');
@@ -26,36 +29,40 @@ class DAPIClient {
 
   /**
    * @private
-   * @param method
-   * @param params
+   * @param {string} method
+   * @param {Object} params
+   * @param {[string[]]} [excludedIps]
    * @returns {Promise<*>}
    */
-  async makeRequestToRandomDAPINode(method, params) {
+  async makeRequestToRandomDAPINode(method, params, excludedIps = []) {
     this.makeRequest.callCount = 0;
-    return this.makeRequestWithRetries(method, params, this.retries);
+
+    return this.makeRequestWithRetries(method, params, this.retries, excludedIps);
   }
 
-  async makeRequest(method, params) {
+  async makeRequest(method, params, excludedIps) {
     this.makeRequest.callCount += 1;
-    const randomMasternode = await this.MNDiscovery.getRandomMasternode();
-    if (!randomMasternode) {
-      throw new Error("Can't connect to DAPI: Masternode list is empty! Please try again later");
-    }
+    const randomMasternode = await this.MNDiscovery.getRandomMasternode(excludedIps);
     return rpcClient.request({
       host: randomMasternode.service.split(':')[0],
       port: this.DAPIPort,
     }, method, params, { timeout: this.timeout });
   }
 
-  async makeRequestWithRetries(method, params, retriesCount = 0) {
+  async makeRequestWithRetries(method, params, retriesCount = 0, excludedIps) {
     try {
-      return await this.makeRequest(method, params);
+      return await this.makeRequest(method, params, excludedIps);
     } catch (err) {
       if (err.code !== 'ECONNABORTED' && err.code !== 'ECONNREFUSED') {
         throw new Error(`DAPI RPC error: ${method}: ${err}`);
       }
       if (retriesCount > 0) {
-        return this.makeRequestWithRetries(method, params, retriesCount - 1);
+        let excludedOnNextTry = [];
+        if (err.address) {
+          excludedOnNextTry = Array.isArray(excludedIps)
+            ? excludedIps.slice().push(err.address) : excludedOnNextTry.push(err.address);
+        }
+        return this.makeRequestWithRetries(method, params, retriesCount - 1, excludedOnNextTry);
       }
       throw new Error('max retries to connect to DAPI node reached');
     }
@@ -66,7 +73,7 @@ class DAPIClient {
   /**
    * Estimate fee
    * @param {number} numberOfBlocksToWait
-   * @return {Promise<number>} - duffs per byte
+   * @return {Promise<number>} - haks per byte
    */
   estimateFee(numberOfBlocksToWait) { return this.makeRequestToRandomDAPINode('estimateFee', { blocks: numberOfBlocksToWait }); }
 
@@ -146,12 +153,13 @@ class DAPIClient {
   getBlockHeader(blockHash) { return this.makeRequestToRandomDAPINode('getBlockHeader', { blockHash }); }
 
   /**
-   * Returns block headers from [offset] with length [limit], where limit is <= 25
+   * Returns block headers from [offset] with length [limit], where limit is <= 2000
    * @param {number} offset
-   * @param {number} limit
+   * @param {number} [limit=1]
+   * @param {boolean} [verbose=false]
    * @returns {Promise<[objects]>} - array of header objects
    */
-  getBlockHeaders(offset, limit) { return this.makeRequestToRandomDAPINode('getBlockHeaders', { offset, limit }); }
+  getBlockHeaders(offset, limit = 1, verbose = false) { return this.makeRequestToRandomDAPINode('getBlockHeaders', { offset, limit, verbose }); }
 
   // TODO: Do we really need it this way?
   /**
@@ -247,7 +255,7 @@ class DAPIClient {
 
   /* Layer 2 commands */
 
-  fetchDapContract(contractId) { return this.makeRequestToRandomDAPINode('fetchDapContract', { contractId }); }
+  fetchContract(contractId) { return this.makeRequestToRandomDAPINode('fetchContract', { contractId }); }
 
   /**
    * Fetch DAP Objects from AxeDrive State View
@@ -261,7 +269,7 @@ class DAPIClient {
    * @param {number} options.startAfter - exclusive skip
    * @return {Promise<Object[]>}
    */
-  fetchDapObjects(contractId, type, options) { return this.makeRequestToRandomDAPINode('fetchDapObjects', { contractId, type, options }); }
+  fetchDocuments(contractId, type, options) { return this.makeRequestToRandomDAPINode('fetchDocuments', { contractId, type, options }); }
 
   /**
    * Returns blockchain user by its username or regtx id
@@ -279,28 +287,59 @@ class DAPIClient {
 
   /**
    * Sends serialized state transition header and data packet
-   * @param {string} rawSTPacket - hex string representing state transition data
    * @param {string} rawStateTransition - hex string representing state transition header
+   * @param {string} rawSTPacket - hex string representing state transition data
    * @returns {Promise<string>} - header id
    */
-  sendRawTransition(rawSTPacket, rawStateTransition) {
-    return this.makeRequestToRandomDAPINode('sendRawTransition', { rawSTPacket, rawStateTransition });
+  sendRawTransition(rawStateTransition, rawSTPacket) {
+    return this.makeRequestToRandomDAPINode('sendRawTransition', {
+      rawSTPacket,
+      rawStateTransition,
+    });
   }
 
   // Here go methods that used in VMN. Most of this methods will work only in regtest mode
   searchUsers(pattern, limit = 10, offset = 0) { return this.makeRequestToRandomDAPINode('searchUsers', { pattern, limit, offset }); }
 
+  /**
+   * @param {Object} bloomFilter
+   * @param {Array} bloomFilter.vData - The filter itself is simply a bit field of arbitrary
+   * byte-aligned size. The maximum size is 36,000 bytes.
+   * @param {number} bloomFilter.nHashFuncs - The number of hash functions to use in this filter.
+   * The maximum value allowed in this field is 50.
+   * @param {number} bloomFilter.nTweak - A random value to add to the seed value in the
+   * hash function used by the bloom filter.
+   * @param {number} bloomFilter.nFlags - A set of flags that control how matched items
+   * are added to the filter.
+   * @returns {Promise<EventEmitter>|!grpc.web.ClientReadableStream<!RawTransaction>|undefined}
+   */
+  async subscribeToTransactionsByFilter(bloomFilter) {
+    const filter = new BloomFilter();
+    filter.setFilter(bloomFilter.vData);
+    filter.setHashFunctionsCount(bloomFilter.nHashFuncs);
+    filter.setTweak(bloomFilter.nTweak);
+    filter.setFlags(bloomFilter.nFlags);
 
-  // Temp methods for SPV testing/POC
-  // In future SPV will choose a specific node and stick with
-  // the node for as long as possible for SPV interaction (to prevent dapi chain rescans)
-  loadBloomFilter(filter) { return this.makeRequestToRandomDAPINode('loadBloomFilter', { filter }); }
+    const nodeToConnect = await this.MNDiscovery.getRandomMasternode();
 
-  addToBloomFilter(originalFilter, element) { return this.makeRequestToRandomDAPINode('addToBloomFilter', { originalFilter, element }); }
+    const client = new TransactionsFilterStreamClient(`${nodeToConnect.getIp()}:${this.getGrpcPort()}`);
 
-  clearBloomFilter(filter) { return this.makeRequestToRandomDAPINode('clearBloomFilter', { filter }); }
+    return client.getTransactionsByFilter(filter);
+  }
 
-  getSpvData(filter) { return this.makeRequestToRandomDAPINode('getSpvData', { filter }); }
+  /**
+   * @private
+   * @return {number}
+   */
+  getGrpcPort() {
+    if (typeof process !== 'undefined'
+      && process.versions != null
+      && process.versions.node != null) {
+      return this.nativeGrpcPort;
+    }
+
+    return this.DAPIPort;
+  }
 }
 
 module.exports = DAPIClient;

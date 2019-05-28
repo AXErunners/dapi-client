@@ -4,9 +4,8 @@ const path = require('path');
 
 const sinon = require('sinon');
 
-const AxePlatformProtocol = require('@axerunners/app');
-const entropy = require('@axerunners/app/lib/util/entropy');
-const DPObject = require('@axerunners/app/lib/object/DPObject');
+const AxePlatformProtocol = require('@axerunners/dpp');
+const entropy = require('@axerunners/dpp/lib/util/entropy');
 
 const {
     Transaction,
@@ -31,18 +30,18 @@ describe("Performance", function () {
     const faucetAddress = process.env.faucetAddress;
     const privKey = process.env.privKey;
     const faucetPrivateKey = new PrivateKey(privKey);
-    let app;
+    let dpp;
     let dapiClient;
 
 
     before("set dapi node", function () {
 
-        const seeds = [{ip: process.env.DAPI_IP}];
+        const seeds = [{service: process.env.DAPI_IP}];
         sinon.stub(MNDiscovery.prototype, 'getRandomMasternode')
-            .returns(Promise.resolve({ip: process.env.DAPI_IP}));
+            .returns(Promise.resolve({service: process.env.DAPI_IP}));
         dapiClient = new DAPIClient({seeds, port: 3000});
         spy = sinon.spy(dapiClient, 'makeRequestToRandomDAPINode');
-        app = new AxePlatformProtocol();
+        dpp = new AxePlatformProtocol();
     });
 
 
@@ -65,6 +64,7 @@ describe("Performance", function () {
                 return {time: delta, result: result};
             })
             .catch(err => {
+                console.log(err);
                 return Promise.reject(err)
             });
     }
@@ -86,8 +86,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numPartRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -108,8 +109,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -131,10 +133,11 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
+            expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
             const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
-            expect(spy.callCount).to.be.equal(numLoops * numRequests);
             console.log("average:", result);
 
         });
@@ -154,12 +157,12 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
-
         });
 
         it("getAddressTotalSent", async function it() {
@@ -177,11 +180,12 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
-            console.log("average per loop:", result);
+            console.log("average:", result);
 
         });
 
@@ -200,11 +204,12 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
-            console.log("average per loop:", result);
+            console.log("average:", result);
         });
     });
 
@@ -224,8 +229,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -247,8 +253,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests + 1);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -271,10 +278,11 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
+            expect(spy.callCount).to.be.equal(numLoops * numRequests + 1);
+            expect(results).to.have.lengthOf(numLoops);
             const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
-            expect(spy.callCount).to.be.equal(numLoops * numRequests + 1);
             console.log("average:", result);
 
         });
@@ -295,8 +303,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -321,8 +330,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests + 2);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -344,8 +354,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -370,8 +381,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests + 1);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -393,8 +405,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests + 1);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -407,7 +420,7 @@ describe("Performance", function () {
         let bobUserIds = [];
         let bobRegTxIds = [];
         let dapIds = [];
-        const seeds = [{ip: '52.39.47.232'}];
+        // const seeds = [{ip: '52.39.47.232'}];
 
         it('sendRawTransaction', async function it() {
             this.timeout(timeoutTest);
@@ -445,8 +458,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * 2);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -468,8 +482,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -493,8 +508,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -515,8 +531,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
@@ -527,7 +544,7 @@ describe("Performance", function () {
             this.timeout(timeoutTest);
             let results = [];
             for (var i = 0; i < numLoops; i += 1) {
-                const dpContract = app.contract.create(entropy.generate().substr(0, 24), {
+                const contract = dpp.contract.create(entropy.generate().substr(0, 24), {
                     user: {
                         properties: {
                             avatarUrl: {
@@ -555,21 +572,17 @@ describe("Performance", function () {
                     },
                 });
 
-                app.setDPContract(dpContract);
-
+                dpp.setContract(contract);
 
                 const queries = new Array(1);
-                const bobPrivateKey = new PrivateKey(); // TODO?
+                expect(bobRegTxIds).to.have.lengthOf.above(0);
                 for (let index = 0; index < 1; ++index) {
 
-                    const stPacket = app.packet.create(app.getDPContract());
+                    const stPacket = dpp.packet.create(dpp.getContract());
 
                     // 2. Create State Transition
                     const transaction = new Transaction()
                         .setType(Transaction.TYPES.TRANSACTION_SUBTX_TRANSITION);
-
-                    const serializedPacket = Schema.serialize.encode(stPacket);
-                    const stPacketHash = doubleSha256(serializedPacket);
 
                     transaction.extraPayload
                         .setRegTxId(bobRegTxIds[i])
@@ -579,31 +592,32 @@ describe("Performance", function () {
                         .sign(bobPrivateKeys[i]);
 
                     queries[index] = await dapiClient.sendRawTransition(
-                      stPacket.serialize().toString('hex'),
-                        transaction.serialize(),
+                      transaction.serialize(),
+                      stPacket.serialize().toString('hex')
                     );
                 }
                 await runPromise(queries).then(function (result) {
                     results.push(result.time);
-                    dapIds.push(doubleSha256(Schema.serialize.encode(dapContract.dapcontract)));
+                    dapIds.push(doubleSha256(Schema.serialize.encode(contract.dapcontract)));
                 }, function (failure) {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
         });
 
-        it('fetchDapContract', async function it() {
+        it('fetchContract', async function it() {
             this.timeout(timeoutTest * 2);
-
+            expect(dapIds).to.have.lengthOf.above(0);
             for (let i = 0; i <= 240; i++) {
                 try {
                     // waiting for Contacts to be added
-                    await dapiClient.fetchDapContract(dapIds[0]);
+                    await dapiClient.fetchContract(dapIds[0]);
                     break;
                 } catch (e) {
                     await wait(1000);
@@ -614,7 +628,7 @@ describe("Performance", function () {
             for (var i = 0; i < numLoops; i += 1) {
                 const queries = new Array(numRequests);
                 for (let index = 0; index < numRequests; ++index) {
-                    queries[index] = dapiClient.fetchDapContract(dapIds[Math.floor(Math.random() * dapIds.length)]);
+                    queries[index] = dapiClient.fetchContract(dapIds[Math.floor(Math.random() * dapIds.length)]);
 
                 }
                 await runPromise(queries).then(function (result) {
@@ -623,21 +637,23 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);
 
         });
 
-        it('fetchDapObjects', async function it() {
+        it('fetchDocuments', async function it() {
             this.timeout(timeoutTest);
+            expect(dapIds).to.have.lengthOf.above(0);
             let results = [];
             for (var i = 0; i < numLoops; i += 1) {
                 const queries = new Array(numRequests);
                 for (let index = 0; index < numRequests; ++index) {
-                    queries[index] = dapiClient.fetchDapObjects(dapIds[Math.floor(Math.random() * dapIds.length)], 'user', {});
+                    queries[index] = dapiClient.fetchDocuments(dapIds[Math.floor(Math.random() * dapIds.length)], 'user', {});
                 }
                 await runPromise(queries).then(function (result) {
                     results.push(result.time);
@@ -645,8 +661,9 @@ describe("Performance", function () {
                     expect(failure, 'Errors found').to.be.undefined;
                 });
             }
-            const result = average(results);
             expect(spy.callCount).to.be.equal(numLoops * numRequests);
+            expect(results).to.have.lengthOf(numLoops);
+            const result = average(results);
             expect(result).to.not.be.NaN;
             expect(result).to.be.a('number');
             console.log("average:", result);

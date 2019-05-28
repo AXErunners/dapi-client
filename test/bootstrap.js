@@ -1,11 +1,12 @@
 const { expect, use } = require('chai');
 const dirtyChai = require('dirty-chai');
 const chaiAsPromised = require('chai-as-promised');
-const AxeApiOptions = require('@axerunners/js-evo-services-ctl/lib/services/driveApi/DriveApiOptions');
-const AxeSyncOptions = require('@axerunners/js-evo-services-ctl/lib/services/driveSync/DriveSyncOptions');
-const DapiOptions = require('@axerunners/js-evo-services-ctl/lib/services/dapi/DapiOptions');
-const AxeCoreOptions = require('@axerunners/js-evo-services-ctl/lib/services/axeCore/AxeCoreOptions');
-const InsightOptions = require('@axerunners/js-evo-services-ctl/lib/services/insight/InsightOptions');
+const AxeApiOptions = require('@axerunners/dp-services-ctl/lib/services/driveApi/DriveApiOptions');
+const AxeSyncOptions = require('@axerunners/dp-services-ctl/lib/services/driveSync/DriveSyncOptions');
+const DapiCoreOptions = require('@axerunners/dp-services-ctl/lib/services/dapi/core/DapiCoreOptions');
+const DapiTxFilterStreamOptions = require('@axerunners/dp-services-ctl/lib/services/dapi/txFilterStream/DapiTxFilterStreamOptions');
+const AxeCoreOptions = require('@axerunners/dp-services-ctl/lib/services/axeCore/AxeCoreOptions');
+const InsightApiOptions = require('@axerunners/dp-services-ctl/lib/services/insightApi/InsightApiOptions');
 
 use(chaiAsPromised);
 use(dirtyChai);
@@ -19,7 +20,12 @@ if (process.env.SERVICE_IMAGE_CORE) {
 }
 
 if (process.env.SERVICE_IMAGE_DAPI) {
-    DapiOptions.setDefaultCustomOptions({
+    DapiCoreOptions.setDefaultCustomOptions({
+        container: {
+            image: process.env.SERVICE_IMAGE_DAPI,
+        },
+    });
+    DapiTxFilterStreamOptions.setDefaultCustomOptions({
         container: {
             image: process.env.SERVICE_IMAGE_DAPI,
         },
@@ -27,7 +33,7 @@ if (process.env.SERVICE_IMAGE_DAPI) {
 }
 
 if (process.env.SERVICE_IMAGE_INSIGHT) {
-    InsightOptions.setDefaultCustomOptions({
+    InsightApiOptions.setDefaultCustomOptions({
         container: {
             image: process.env.SERVICE_IMAGE_INSIGHT,
         },
